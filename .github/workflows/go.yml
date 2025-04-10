@@ -39,4 +39,4 @@ jobs:
           goversion: "1.24"
           binary_name: "tini-pm"
           ldflags: "-extldflags=-static"
-          build_command: "CGO_ENABLED=0 go build"
+          build_flags: "CGO_ENABLED=0"
