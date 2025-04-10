@@ -38,5 +38,5 @@ jobs:
           goarch: ${{ matrix.goarch }}
           goversion: "1.24"
           binary_name: "tini-pm"
-          ldflags: "-extldflags=-static"
-          build_flags: "CGO_ENABLED=0"
+          ldflags: "'-extldflags=-static'"
+          pre_command: "export CGO_ENABLED=0"
