@@ -1,0 +1,42 @@
+name: go
+run-name: ${{ inputs.run-name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      run-name:
+        description: 'set run-name for workflow (multiple calls)'
+        type: string
+        required: false
+        default: 'go'
+
+jobs:
+  go:
+    runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        goos: [linux]
+        goarch: [amd64, arm64]
+
+    permissions:
+      contents: write
+      packages: write
+
+    steps:   
+      - name: init / checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: go / build
+        uses: wangyoucao577/go-release-action@8dbc9990292b456ae78e728c7cf7b857b821faac
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          goversion: "1.24"
+          binary_name: "tini-pm"
+          ldflags: "-extldflags=-static"
+          build_command: "CGO_ENABLED=0 go build"

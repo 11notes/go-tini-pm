@@ -1,0 +1,8 @@
+# default
+maintain/
+node_modules/
+
+# custom
+build/
+compose.yaml
+dockerfile
