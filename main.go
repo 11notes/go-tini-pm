@@ -161,7 +161,7 @@ func main() {
 	enableSocket := flag.Bool("socket", false, "enable socket for communication")
 	flag.Parse()
 
-	// check if environment variable provided is a file or yaml
+	// check if environment variable provided is a file or inline and parse accordingly
 	cfg := &Config{}
 	file, err := ioutil.ReadFile(os.Getenv("TINI_PM_CONFIG"))
 	if err != nil{
