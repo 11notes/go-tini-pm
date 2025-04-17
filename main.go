@@ -4,19 +4,15 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
-	"github.com/gorilla/mux"
 	"github.com/shirou/gopsutil/v4/process"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -148,47 +144,6 @@ func run(name string, bin string, args []string, fail bool, restart bool, enviro
 	}
 }
 
-func socket(pfile *string){
-	var file string = *pfile;
-	r := mux.NewRouter()
-	r.HandleFunc("/", socketPost).Methods("POST")
-	r.HandleFunc("/", socketGet).Methods("GET")
- 
-	srv := &http.Server{
-	 Handler: r,
-	}
-
-	err := os.Remove(file) 
-	unix, err := net.Listen("unix", file)
-	if err != nil {
-		panic(err)
-	}
-	log(LOG_CALLER_MAIN, fmt.Sprintf("started socket on %s", file))
-	go srv.Serve(unix)
-}
-
-func socketGet(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "post json with bin and args (array)")
-}
- 
-func socketPost(w http.ResponseWriter, r *http.Request) {
-	var p SocketPost
-	err := json.NewDecoder(r.Body).Decode(&p)
-
-	if err != nil {  
-		http.Error(w, err.Error(), http.StatusBadRequest)  
-		return
-	} 
-
-	data, err := exec.Command(p.Bin, p.Args...).Output()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)  
-		return
-	}
-
-	fmt.Fprintf(w, string(data))
-}
-
 func main() {
 	// syscalls
 	signalChannel := make(chan os.Signal, 1)
@@ -203,7 +158,6 @@ func main() {
 	// parse flags
 	restartDelay := flag.Int("restart-delay", 5, "restart delay in seconds for proccesses with restart true")
 	enableSocket := flag.Bool("socket", false, "enable socket for communication")
-	socketFile := flag.String("socket-file", "/run/tini-pm/tini-pm.sock", "path to socket file")
 	flag.Parse()
 
 	// parse config
@@ -215,7 +169,8 @@ func main() {
 
 	// start socket if set
 	if(*enableSocket){
-		socket(socketFile)
+		wg.Add(1)
+		go run("cmd-socket", "cmd-socket", nil, false, true, nil, restartDelay)
 	}
 
 	// start processes
