@@ -15,6 +15,7 @@ import (
 	"time"
 	"github.com/shirou/gopsutil/v4/process"
 	yaml "gopkg.in/yaml.v3"
+	"io/ioutil"
 )
 
 const EXIT_YML_PARSE_ERROR = 11;
@@ -160,12 +161,21 @@ func main() {
 	enableSocket := flag.Bool("socket", false, "enable socket for communication")
 	flag.Parse()
 
-	// parse config
+	// check if environment variable provided is a file or yaml
 	cfg := &Config{}
-	if err := yaml.Unmarshal([]byte(os.Getenv("TINI_PM_CONFIG")), cfg); err != nil {
-		log(LOG_CALLER_MAIN, fmt.Sprintf("yaml parse error %v", err))
-		os.Exit(EXIT_YML_PARSE_ERROR)
+	file, err := ioutil.ReadFile(os.Getenv("TINI_PM_CONFIG"))
+	if err != nil{
+		if err := yaml.Unmarshal([]byte(os.Getenv("TINI_PM_CONFIG")), cfg); err != nil {
+			log(LOG_CALLER_MAIN, fmt.Sprintf("yaml parse error %v", err))
+			os.Exit(EXIT_YML_PARSE_ERROR)
+		}
+	}else{
+		if err := yaml.Unmarshal(file, cfg); err != nil {
+			log(LOG_CALLER_MAIN, fmt.Sprintf("yaml parse error %v", err))
+			os.Exit(EXIT_YML_PARSE_ERROR)
+		}
 	}
+	
 
 	// start socket if set
 	if(*enableSocket){
