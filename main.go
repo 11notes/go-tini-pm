@@ -169,6 +169,7 @@ func main() {
 
 	// start socket if set
 	if(*enableSocket){
+		logMaxNameLength = len("cmd-socket")
 		wg.Add(1)
 		go run("cmd-socket", "cmd-socket", nil, false, true, nil, restartDelay)
 	}
@@ -179,6 +180,7 @@ func main() {
 			logMaxNameLength = len(service.Name)
 		}
 	}
+
 	for _, service := range cfg.Services {
 		wg.Add(1)
 		go run(service.Name, service.Bin, service.Arguments, service.Fail, service.Restart, service.Environment, restartDelay)
