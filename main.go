@@ -67,7 +67,6 @@ func killKnownChildProcesses(){
 			log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) killed", child.Bin, child.PID))
 		}
 	}
-	killUnknownChildProcesses()
 }
 
 func killUnknownChildProcesses(){
@@ -135,9 +134,9 @@ func run(name string, bin string, args []string, fail bool, restart bool, enviro
 				killKnownChildProcesses()
 				os.Exit(EXIT_REQUIRED_PROCESS_FAIL)
 			}else if(restart){
-				log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) with arguments %v died (restarting every )", bin, cmd.Process.Pid, args))
+				log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) with arguments %v died (restarting every %ds)", bin, cmd.Process.Pid, args, restartDelay))
 				time.Sleep(time.Duration(restartDelay) * time.Second) 
-				run(name, bin, args, fail, restart, environment, restartdelayp)
+				go run(name, bin, args, fail, restart, environment, restartdelayp)
 			}else{
 				log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) with arguments %v died", bin, cmd.Process.Pid, args))
 			}
@@ -152,8 +151,10 @@ func main() {
 
 	// event listener
 	go func() {
-		<-signalChannel
+		signal := <-signalChannel
+		log(LOG_CALLER_MAIN, fmt.Sprintf("received signal %v", signal))
 		killKnownChildProcesses()
+		killUnknownChildProcesses()
 	}()
 
 	// parse flags
