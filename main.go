@@ -21,7 +21,7 @@ import (
 const EXIT_YML_PARSE_ERROR = 11;
 const EXIT_REQUIRED_PROCESS_FAIL = 12;
 const EXIT_CANT_KILL_RUNAWAY = 13;
-
+const TINI_PM_CONFIG = "/etc/tini-pm/config.yml"
 const LOG_CALLER_MAIN = "tini-pm"
 
 var childProcesses = make(map[string]ProcessInfo)
@@ -51,6 +51,13 @@ type ProcessInfo struct {
 type SocketPost struct {
 	Bin string `json:"bin,omitempty"`
 	Args []string `json:"args,omitempty"`
+}
+
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
 }
 
 func log(caller string, msg string){
@@ -164,9 +171,9 @@ func main() {
 
 	// check if environment variable provided is a file or inline and parse accordingly
 	cfg := &Config{}
-	file, err := ioutil.ReadFile(os.Getenv("TINI_PM_CONFIG"))
+	file, err := ioutil.ReadFile(getEnv("TINI_PM_CONFIG", TINI_PM_CONFIG))
 	if err != nil{
-		if err := yaml.Unmarshal([]byte(os.Getenv("TINI_PM_CONFIG")), cfg); err != nil {
+		if err := yaml.Unmarshal([]byte(getEnv("TINI_PM_CONFIG", TINI_PM_CONFIG)), cfg); err != nil {
 			log(LOG_CALLER_MAIN, fmt.Sprintf("yaml parse error %v", err))
 			os.Exit(EXIT_YML_PARSE_ERROR)
 		}
