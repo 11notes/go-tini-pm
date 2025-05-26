@@ -21,6 +21,7 @@ import (
 const EXIT_YML_PARSE_ERROR = 11;
 const EXIT_REQUIRED_PROCESS_FAIL = 12;
 const EXIT_CANT_KILL_RUNAWAY = 13;
+const EXIT_NO_CMD_ROOT = 14;
 const TINI_PM_CONFIG = "/etc/tini-pm/config.yml"
 const LOG_CALLER_MAIN = "tini-pm"
 
@@ -31,11 +32,11 @@ var logMaxNameLength int
 type Config struct {
 	Services []struct {
 		Name string `yaml:"name"`
-		Fail bool `yaml:"fail,omitempty"`
-		Restart bool `yaml:"restart,omitempty"`
+		Fail bool `yaml:"fail"`
+		Restart bool `yaml:"restart"`
 		Bin string `yaml:"bin"`
-		Arguments []string `yaml:"arguments,omitempty"`
-		Environment map[string]interface{} `yaml:"environment,omitempty"`
+		Arguments []string `yaml:"arguments"`
+		Environment map[string]interface{} `yaml:"environment"`
 	} `yaml:"services"`
 }
 
@@ -49,8 +50,8 @@ type ProcessInfo struct {
 }
 
 type SocketPost struct {
-	Bin string `json:"bin,omitempty"`
-	Args []string `json:"args,omitempty"`
+	Bin string `json:"bin"`
+	Args []string `json:"args"`
 }
 
 func getEnv(key, fallback string) string {
@@ -69,9 +70,11 @@ func log(caller string, msg string){
 }
 
 func killKnownChildProcesses(){
-	for _, child := range childProcesses {
-		if err := child.cmd.Process.Kill(); err == nil {
-			log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) killed", child.Bin, child.PID))
+	for _, child := range childProcesses {		
+		if err := syscall.Kill(-child.cmd.Process.Pid, syscall.SIGTERM); err == nil {
+			log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) terminated successfully", child.Bin, child.PID))
+		}else{
+			log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) could not be terminated. ERROR: %s", child.Bin, child.PID, err))
 		}
 	}
 }
@@ -124,7 +127,7 @@ func run(name string, bin string, args []string, fail bool, restart bool, enviro
 
 	err := cmd.Start()
 	if err != nil {
-		log(LOG_CALLER_MAIN, fmt.Sprintf("process %s with arguments %v could not be started %v", bin, args, err))
+		log(LOG_CALLER_MAIN, fmt.Sprintf("process %s with arguments %v could not be started. ERROR: %s", bin, args, err))
 	}else{
 		log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) with arguments %v started", bin, cmd.Process.Pid, args))
 		childProcesses[hash] = ProcessInfo{
@@ -174,12 +177,12 @@ func main() {
 	file, err := ioutil.ReadFile(getEnv("TINI_PM_CONFIG", TINI_PM_CONFIG))
 	if err != nil{
 		if err := yaml.Unmarshal([]byte(getEnv("TINI_PM_CONFIG", TINI_PM_CONFIG)), cfg); err != nil {
-			log(LOG_CALLER_MAIN, fmt.Sprintf("yaml parse error %v", err))
+			log(LOG_CALLER_MAIN, fmt.Sprintf("yaml parse error. ERROR: %s", err))
 			os.Exit(EXIT_YML_PARSE_ERROR)
 		}
 	}else{
 		if err := yaml.Unmarshal(file, cfg); err != nil {
-			log(LOG_CALLER_MAIN, fmt.Sprintf("yaml parse error %v", err))
+			log(LOG_CALLER_MAIN, fmt.Sprintf("yaml parse error. ERROR: %s", err))
 			os.Exit(EXIT_YML_PARSE_ERROR)
 		}
 	}
@@ -187,9 +190,14 @@ func main() {
 
 	// start socket if set
 	if(*enableSocket){
-		logMaxNameLength = len("cmd-socket")
-		wg.Add(1)
-		go run("cmd-socket", "cmd-socket", nil, false, true, nil, restartDelay)
+		if _, err := os.Stat("/run/cmd"); !os.IsNotExist(err) {
+			logMaxNameLength = len("cmd-socket")
+			wg.Add(1)
+			go run("cmd-socket", "cmd-socket", nil, false, true, nil, restartDelay)
+		}else{
+			log(LOG_CALLER_MAIN, fmt.Sprintf("can't start cmd-socket. ERROR: folder /run/cmd does not exist!"))
+			os.Exit(EXIT_NO_CMD_ROOT)
+		}
 	}
 
 	// start processes
