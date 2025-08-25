@@ -79,7 +79,6 @@ func killUnknownChildProcesses(){
 	processes, err := process.Processes()
 	if err == nil {
 		for _, p := range processes {
-			name, _ := p.Name()
 			if p.Pid != 1 {
 				p.Kill()
 			}
