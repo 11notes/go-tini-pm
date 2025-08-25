@@ -71,11 +71,7 @@ func log(caller string, msg string){
 
 func killKnownChildProcesses(){
 	for _, child := range childProcesses {		
-		if err := syscall.Kill(-child.cmd.Process.Pid, syscall.SIGTERM); err == nil {
-			log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) terminated successfully", child.Bin, child.PID))
-		}else{
-			log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) could not be terminated. ERROR: %s", child.Bin, child.PID, err))
-		}
+		syscall.Kill(-child.cmd.Process.Pid, syscall.SIGTERM)
 	}
 }
 
@@ -85,9 +81,7 @@ func killUnknownChildProcesses(){
 		for _, p := range processes {
 			name, _ := p.Name()
 			if p.Pid != 1 {
-				if err := p.Kill(); err == nil {
-					log(LOG_CALLER_MAIN, fmt.Sprintf("unknown process %s (PID %d) killed", name, p.Pid))
-				}
+				p.Kill()
 			}
 		}
 		os.Exit(EXIT_REQUIRED_PROCESS_FAIL)
@@ -129,7 +123,6 @@ func run(name string, bin string, args []string, fail bool, restart bool, enviro
 	if err != nil {
 		log(LOG_CALLER_MAIN, fmt.Sprintf("process %s with arguments %v could not be started. ERROR: %s", bin, args, err))
 	}else{
-		log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) with arguments %v started", bin, cmd.Process.Pid, args))
 		childProcesses[hash] = ProcessInfo{
 			cmd: cmd,
 			Bin: bin,
@@ -144,11 +137,9 @@ func run(name string, bin string, args []string, fail bool, restart bool, enviro
 				killKnownChildProcesses()
 				os.Exit(EXIT_REQUIRED_PROCESS_FAIL)
 			}else if(restart){
-				log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) with arguments %v died (restarting every %ds)", bin, cmd.Process.Pid, args, restartDelay))
+				log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) died (restarting every %ds)", bin, cmd.Process.Pid, args, restartDelay))
 				time.Sleep(time.Duration(restartDelay) * time.Second) 
 				go run(name, bin, args, fail, restart, environment, restartdelayp)
-			}else{
-				log(LOG_CALLER_MAIN, fmt.Sprintf("process %s (PID %d) with arguments %v died", bin, cmd.Process.Pid, args))
 			}
 		}
 	}
