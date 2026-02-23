@@ -13,6 +13,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"strings"
 	"github.com/shirou/gopsutil/v4/process"
 	yaml "gopkg.in/yaml.v3"
 	"io/ioutil"
@@ -54,6 +55,11 @@ type SocketPost struct {
 	Args []string `json:"args"`
 }
 
+type ProcessLog struct {
+	Exclude bool
+	ExcludeString string
+}
+
 func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
@@ -70,7 +76,7 @@ func log(caller string, msg string){
 }
 
 func killKnownChildProcesses(){
-	for _, child := range childProcesses {		
+	for _, child := range childProcesses {
 		syscall.Kill(-child.cmd.Process.Pid, syscall.SIGTERM)
 	}
 }
@@ -90,7 +96,8 @@ func killUnknownChildProcesses(){
 }
 
 func run(name string, bin string, args []string, fail bool, restart bool, environment map[string]interface{}, restartdelayp *int){
-	var restartDelay int = *restartdelayp	
+	var restartDelay int = *restartdelayp
+	runLog := &ProcessLog{Exclude:false, ExcludeString:""}
 	defer wg.Done()
 
 	cmd := exec.Command(bin, args...)
@@ -101,6 +108,10 @@ func run(name string, bin string, args []string, fail bool, restart bool, enviro
 		env := append(os.Environ())
 		for key, value := range environment {
 			env = append(env, fmt.Sprintf("%s=%v", key, value))
+			if key == "TINI_PM_EXCLUDE_LOG" {
+				runLog.Exclude = true
+				runLog.ExcludeString = value.(string)
+			}
 		}
 		cmd.Env = env
 	}
@@ -110,7 +121,14 @@ func run(name string, bin string, args []string, fail bool, restart bool, enviro
 	go func() {
 		stdoutScanner := bufio.NewScanner(io.MultiReader(stdout,stderr))
 		for stdoutScanner.Scan() {
-			log(name, stdoutScanner.Text())
+			line := stdoutScanner.Text()
+			if runLog.Exclude {
+				if strings.Index(line, runLog.ExcludeString) < 0 {
+					log(name, line)
+				}
+			}else{
+				log(name, line)
+			}
 		}
 	}()
 
